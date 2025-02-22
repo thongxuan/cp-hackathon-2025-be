@@ -1,14 +1,15 @@
-import { ClientSession, Types } from 'mongoose';
-import assert from 'assert';
-import { WebSocket } from 'ws';
+import { ClientSession, Types } from "mongoose";
+import assert from "assert";
+import { Socket } from "socket.io";
 
-import { User, UserModel } from '../models/user';
+import { User, UserModel } from "../models/user";
+import { ChatModel } from "../models/chat";
 
-import { withTransaction } from '../helpers/db';
-import { ChatModel } from '../models/chat';
-import { Socket } from 'socket.io';
+import { withTransaction } from "../helpers/db";
 
-const getInitialUserMemory = (user: User) => [`I'm a virtual developer, my name is ${user.name}`];
+const getInitialUserMemory = (user: User) => [
+  `I'm a virtual developer, my name is ${user.name}`,
+];
 
 const userWebsockets: Record<string, Socket | undefined> = {};
 
@@ -20,7 +21,7 @@ export const getUserWebsocket = (user: Types.ObjectId) => {
   return userWebsockets[user.toHexString()];
 };
 
-export const setUserWebsocket = (user: Types.ObjectId, ws: Socket) => {
+export const setUserWebsocket = (user: Types.ObjectId, ws?: Socket) => {
   return (userWebsockets[user.toHexString()] = ws);
 };
 
@@ -32,7 +33,10 @@ export const initDeveloper = async (user: User) => {
   user.memory = memory;
 };
 
-export const createOrGetUser = async (name: string, session?: ClientSession) => {
+export const createOrGetUser = async (
+  name: string,
+  session?: ClientSession
+) => {
   let user = await UserModel.findOne({ name }).lean();
 
   if (!user) {
@@ -40,9 +44,12 @@ export const createOrGetUser = async (name: string, session?: ClientSession) => 
       user = new UserModel({ name });
 
       await UserModel.create([user], { session });
-      await ChatModel.create([{ user: user._id, content: 'How can I help you today?' }], {
-        session,
-      });
+      await ChatModel.create(
+        [{ user: user._id, content: "How can I help you today?" }],
+        {
+          session,
+        }
+      );
     }, session);
   }
 

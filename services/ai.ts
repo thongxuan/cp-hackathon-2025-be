@@ -10,14 +10,16 @@ import {Chat} from "../models/chat";
 import {
   getDetermineActionsPrompt,
   getDetermineDecisionPrompt,
+  getDetermineNewProjectNamePrompt,
   getResolveCurrentFollowUpPrompt,
   getVerifyExistingProjectPrompt,
 } from "./prompt";
+import {ProjectRepo} from "../models/project-repo";
 
 export enum DeveloperAction {
   ANSWER_PREVIOUS_QUESTION = "ANSWER_PREVIOUS_QUESTION",
   JUST_A_CHAT = "JUST_A_CHAT",
-  UPDATE_KNOWLEDGE = "UPDATE_KNOWLEDGE",
+  UPDATE_PERSONAL_INFO = "UPDATE_PERSONAL_INFO",
   ASSIGN_NEW_PROJECT = "ASSIGN_NEW_PROJECT",
   UPDATE_PROJECT_INFO = "UPDATE_PROJECT_INFO",
   UPDATE_PROJECT_GIT_REPO = "UPDATE_PROJECT_GIT_REPO",
@@ -30,6 +32,10 @@ export interface ChatResponse {
   chat?: string; //-- chat back message
 }
 
+export interface PositiveResponse extends ChatResponse {
+  positive?: boolean;
+}
+
 export interface DecisionResponse<T> extends ChatResponse {
   positive: boolean;
   decision: T;
@@ -38,6 +44,10 @@ export interface DecisionResponse<T> extends ChatResponse {
 export interface ActionResponse extends ChatResponse {
   type: DeveloperAction;
   project?: string; //-- name of the project
+  repo?: string;
+  gitUrl?: string;
+  gitAccessToken?: string;
+  memory?: string[];
 }
 const request = async <T>(user: User, content: string) => {
   assert.ok(user.memory?.length);
@@ -64,11 +74,15 @@ const request = async <T>(user: User, content: string) => {
   }
 };
 
-export const determineActionsFromChat = async (user: User, chats: Chat[]) => {
-  console.log("determining current actions");
+export const determineActionsFromChat = async (
+  user: User,
+  projects: Project[],
+  repos: ProjectRepo[],
+  chats: Chat[],
+) => {
   return await request<ActionResponse[]>(
     user,
-    getDetermineActionsPrompt(chats),
+    getDetermineActionsPrompt(projects, repos, chats),
   );
 };
 
@@ -80,6 +94,20 @@ export const determineDecisionMade = async <T>(
   return await request<DecisionResponse<T>>(
     user,
     getDetermineDecisionPrompt(chats, decisionFormat),
+  );
+};
+
+interface DetermineNewProjectNameResponse extends ChatResponse {
+  isNewProject?: boolean;
+}
+export const determineNewProjectName = async (
+  user: User,
+  project: Project,
+  chats: Chat[],
+) => {
+  return await request<DetermineNewProjectNameResponse>(
+    user,
+    getDetermineNewProjectNamePrompt(project, chats),
   );
 };
 
