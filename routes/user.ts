@@ -1,7 +1,7 @@
 import express from "express";
 
 import { createOrGetUser, initDeveloper } from "../services/user";
-import { AiDeveloper } from "../developer";
+import { AiDeveloper } from "../services/developer";
 import { ChatModel } from "../models/chat";
 
 const router = express.Router();

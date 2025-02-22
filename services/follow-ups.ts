@@ -1,13 +1,13 @@
-import {Chat} from "./models/chat";
-import {Project} from "./models/project";
-import {User} from "./models/user";
+import { Chat } from "../models/chat";
+import { Project } from "../models/project";
+import { User } from "../models/user";
 
 import {
   determineDecisionMade,
   determineNewProjectName,
   PositiveResponse,
-} from "./services/ai";
-import {initNewProject} from "./services/project";
+} from "./ai";
+import { initNewProject } from "./project";
 
 export class FollowUp<T = any> {
   private inited?: boolean = false;
@@ -17,7 +17,7 @@ export class FollowUp<T = any> {
     protected readonly chatBack: (content?: string) => void,
     protected readonly initMessage: () => Promise<PositiveResponse>,
     protected readonly decisionFormat: string,
-    protected readonly onDecide: (decision?: T) => void,
+    protected readonly onDecide: (decision?: T) => void
   ) {}
 
   async handleFollowUpChats(chats: Chat[]) {
@@ -40,7 +40,7 @@ export class FollowUp<T = any> {
       const decisionMade = await determineDecisionMade<T>(
         this.user,
         chats,
-        this.decisionFormat,
+        this.decisionFormat
       );
 
       console.log("decision made", decisionMade);
@@ -59,7 +59,7 @@ export const createProjectNameFollowUp = (
   project: Project,
   chats: Chat[],
   chatBack: (content?: string) => void,
-  onFinish?: () => void,
+  onFinish?: () => void
 ) => {
   return new FollowUp<{
     isNew: boolean;
@@ -77,12 +77,12 @@ export const createProjectNameFollowUp = (
     (decision) => {
       if (decision) {
         if (decision.isNew) {
-          initNewProject(user, {name: decision.projectName});
+          initNewProject(user, { name: decision.projectName });
         }
       }
 
       //-- decision made, clear followup
       onFinish?.();
-    },
+    }
   );
 };

@@ -14,7 +14,8 @@ const getInitialUserMemory = (user: User) => [
 const userWebsockets: Record<string, Socket | undefined> = {};
 
 export const getUserFromReq = (req: Request) => {
-  return (req as any).user as { userId: string } | undefined;
+  const user = (req as any).user;
+  return user as { userId: Types.ObjectId } | undefined;
 };
 
 export const getUserWebsocket = (user: Types.ObjectId) => {

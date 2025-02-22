@@ -46,9 +46,11 @@ async function main() {
 
   app.use((req, res, next) => {
     //-- session middleware
-    const userId = req.headers["x-user-id"] || "";
+    const userId = req.headers["x-user-id"] as string;
 
-    (req as any).user = userId ? { userId } : undefined;
+    (req as any).user = userId
+      ? { userId: new Types.ObjectId(userId) }
+      : undefined;
 
     next();
   });
