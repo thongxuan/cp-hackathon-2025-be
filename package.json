@@ -4,11 +4,13 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "npx ts-node ./index.ts"
+    "start": "npx ts-node ./index.ts",
+    "dev": "nodemon ./index.ts"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/mongoose": "^5.11.97",
     "@types/ws": "^8.5.14",
@@ -17,10 +19,14 @@
   },
   "dependencies": {
     "@typegoose/typegoose": "^12.11.0",
+    "body-parser": "^1.20.3",
+    "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "mongoose": "^8.10.1",
+    "nodemon": "^3.1.9",
     "openai": "^4.85.3",
+    "socket.io": "^4.8.1",
     "ws": "^8.18.1"
   }
 }
