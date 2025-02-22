@@ -1,23 +1,25 @@
 import assert from "assert";
 import OpenAI from "openai";
 
-import {GPT_MODEL, OPEN_AI_KEY} from "../config";
+import { GPT_MODEL, OPEN_AI_KEY } from "../config";
 
-import {Project} from "../models/project";
-import {User} from "../models/user";
-import {Chat} from "../models/chat";
+import { Project } from "../models/project";
+import { User } from "../models/user";
+import { Chat } from "../models/chat";
+import { ProjectRepo } from "../models/project-repo";
+import { Task } from "../models/task";
 
 import {
   getDetermineActionsPrompt,
   getDetermineDecisionPrompt,
   getDetermineNewProjectNamePrompt,
+  getDetermineTaskRequirementClearedPrompt,
+  getPendingTaskMessagePrompt,
   getResolveCurrentFollowUpPrompt,
   getVerifyExistingProjectPrompt,
 } from "./prompt";
-import {ProjectRepo} from "../models/project-repo";
 
 export enum DeveloperAction {
-  ANSWER_PREVIOUS_QUESTION = "ANSWER_PREVIOUS_QUESTION",
   JUST_A_CHAT = "JUST_A_CHAT",
   UPDATE_PERSONAL_INFO = "UPDATE_PERSONAL_INFO",
   ASSIGN_NEW_PROJECT = "ASSIGN_NEW_PROJECT",
@@ -26,7 +28,7 @@ export enum DeveloperAction {
   GENERATE_PULL_REQUEST_FROM_REQUIREMENTS = "GENERATE_PULL_REQUEST_FROM_REQUIREMENTS",
 }
 
-const openai = new OpenAI({apiKey: OPEN_AI_KEY});
+const openai = new OpenAI({ apiKey: OPEN_AI_KEY });
 
 export interface ChatResponse {
   chat?: string; //-- chat back message
@@ -48,19 +50,19 @@ export interface ActionResponse extends ChatResponse {
   gitUrl?: string;
   gitAccessToken?: string;
   memory?: string[];
+  baseBranch?: string;
+  requirements?: string[];
 }
 const request = async <T>(user: User, content: string) => {
   assert.ok(user.memory?.length);
 
   const memory = user.memory.map(
-    (m) => ({role: "system", content: m} as const),
+    (m) => ({ role: "system", content: m } as const)
   );
-
-  console.log("requesting", [...memory, {role: "user", content}]);
 
   const response = await openai.chat.completions.create({
     model: GPT_MODEL,
-    messages: [...memory, {role: "user", content}],
+    messages: [...memory, { role: "user", content }],
   });
 
   try {
@@ -78,22 +80,22 @@ export const determineActionsFromChat = async (
   user: User,
   projects: Project[],
   repos: ProjectRepo[],
-  chats: Chat[],
+  chats: Chat[]
 ) => {
   return await request<ActionResponse[]>(
     user,
-    getDetermineActionsPrompt(projects, repos, chats),
+    getDetermineActionsPrompt(projects, repos, chats)
   );
 };
 
 export const determineDecisionMade = async <T>(
   user: User,
   chats: Chat[],
-  decisionFormat: string,
+  decisionFormat: string
 ) => {
   return await request<DecisionResponse<T>>(
     user,
-    getDetermineDecisionPrompt(chats, decisionFormat),
+    getDetermineDecisionPrompt(chats, decisionFormat)
   );
 };
 
@@ -103,24 +105,41 @@ interface DetermineNewProjectNameResponse extends ChatResponse {
 export const determineNewProjectName = async (
   user: User,
   project: Project,
-  chats: Chat[],
+  chats: Chat[]
 ) => {
   return await request<DetermineNewProjectNameResponse>(
     user,
-    getDetermineNewProjectNamePrompt(project, chats),
+    getDetermineNewProjectNamePrompt(project, chats)
   );
 };
 
 export const verifyExistingProject = async (user: User, project: Project) => {
   return await request<ChatResponse>(
     user,
-    getVerifyExistingProjectPrompt(project),
+    getVerifyExistingProjectPrompt(project)
   );
+};
+
+export const getPendingTaskMessage = async (user: User, task: Task) => {
+  return await request<ChatResponse>(user, getPendingTaskMessagePrompt(task));
 };
 
 export const resolveCurrentFollowUp = async (user: User, chats: Chat[]) => {
   return await request<ChatResponse>(
     user,
-    getResolveCurrentFollowUpPrompt(chats),
+    getResolveCurrentFollowUpPrompt(chats)
+  );
+};
+
+interface DetermineNewProjectNameResponse extends ChatResponse {
+  isNewProject?: boolean;
+}
+export const determineTaskRequirementsCleared = async (
+  user: User,
+  chats: Chat[]
+) => {
+  return await request<DetermineNewProjectNameResponse>(
+    user,
+    getDetermineTaskRequirementClearedPrompt(chats)
   );
 };

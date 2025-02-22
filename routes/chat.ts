@@ -26,7 +26,7 @@ router.post("/chats", async (req: any, res) => {
     return;
   }
 
-  const message = await ChatModel.insertOne({
+  const message = new ChatModel({
     user: user.userId,
     content: req.body.content,
     outbound: true,

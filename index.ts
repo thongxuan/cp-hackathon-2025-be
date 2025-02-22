@@ -9,7 +9,7 @@ import { MONGO_URL, PORT } from "./config";
 import { router as userRouter } from "./routes/user";
 import { router as chatRouter } from "./routes/chat";
 
-import { setUserWebsocket } from "./services/user";
+import { removeUserWebsocket, setUserWebsocket } from "./services/user";
 
 async function main() {
   mongoose.set("debug", true);
@@ -38,7 +38,7 @@ async function main() {
     console.log(`User socket connected: ${userId}`);
 
     socket.on("close", () => {
-      setUserWebsocket(new Types.ObjectId(userId));
+      removeUserWebsocket(new Types.ObjectId(userId), socket);
     });
 
     setUserWebsocket(new Types.ObjectId(userId), socket);

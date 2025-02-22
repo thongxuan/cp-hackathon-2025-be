@@ -23,7 +23,14 @@ export const getUserWebsocket = (user: Types.ObjectId) => {
 };
 
 export const setUserWebsocket = (user: Types.ObjectId, ws?: Socket) => {
-  return (userWebsockets[user.toHexString()] = ws);
+  userWebsockets[user.toHexString()] = ws;
+};
+
+export const removeUserWebsocket = (user: Types.ObjectId, ws: Socket) => {
+  const currentSocket = userWebsockets[user.toHexString()];
+  if (currentSocket && currentSocket.id === ws.id) {
+    userWebsockets[user.toHexString()] = undefined;
+  }
 };
 
 export const initDeveloper = async (user: User) => {

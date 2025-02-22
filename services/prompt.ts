@@ -1,8 +1,9 @@
-import {Chat} from "../models/chat";
-import {Project} from "../models/project";
-import {ProjectRepo} from "../models/project-repo";
+import { Chat } from "../models/chat";
+import { Project } from "../models/project";
+import { ProjectRepo } from "../models/project-repo";
+import { Task } from "../models/task";
 
-import {DeveloperAction} from "./ai";
+import { DeveloperAction } from "./ai";
 
 const guidesOnJsonResponse = [
   "Here are some guides on the response:",
@@ -14,28 +15,24 @@ const guidesOnJsonResponse = [
 export const getDetermineActionsPrompt = (
   projects: Project[],
   repos: ProjectRepo[],
-  chats: Chat[],
+  chats: Chat[]
 ) => {
   return `
   I am a software developer.
 
   I've been added to the following projects:
   #PROJECTS#
-  ${
-    !projects.length
-      ? "none"
-      : projects.map((project) => project.name).join("\n")
-  }
+  ${!projects.length ? "" : projects.map((project) => project.name).join("\n")}
 
   And corresponding repos:
   #REPOS#
   ${
     !repos.length
-      ? "none"
+      ? ""
       : repos
           .map((repo) => {
             const project = projects.find((project) =>
-              project._id.equals(repo.project),
+              project._id.equals(repo.project)
             );
 
             return `${project?.name}: ${repo.name}`;
@@ -63,15 +60,13 @@ export const getDetermineActionsPrompt = (
       "gitUrl: string,
       "gitAccessToken": string,
       "memory": string[],
+      "baseBranch": string,
       "requirements": string[]
     },
   ]
 
   Some information that help on providing the response:
   - ActionType is one of ${Object.values(DeveloperAction).join(",")}
-  - if the last message is to answer the question, the ActionType must be ${
-    DeveloperAction.ANSWER_PREVIOUS_QUESTION
-  } and it must be the only action in the response array
   - if ActionType is ${
     DeveloperAction.JUST_A_CHAT
   }, suggest the appropriate response in the "chat" field
@@ -83,19 +78,34 @@ export const getDetermineActionsPrompt = (
   }, suggest the appropriate project name in the "project" field and suggest an appropriate response in the "chat" field that tells my boss I'm happy to join the project
   - If a Git Personal Access Token (PAT) is provided, the the ActionType must be ${
     DeveloperAction.UPDATE_PROJECT_INFO
-  }, the project field should match the project names listed above in #PROJECTS# section, the "gitAccessToken" field must includes the provided token. If the project name is not detected then suggest a reply in "chat" field to ask for the project name. If the project name is provided but it is not one of the project that I'm assigned, then suggest a reply in "chat" field to ask for the correct project name.
-  - If a Git repository URL is provided, the ActionType must be ${
+  }
+  The "project" field should match the project names listed above in #PROJECTS# section, the "gitAccessToken" field must includes the provided token. 
+  If the "project" field is empty or it is not one of the project that I'm assigned then suggest a response in "chat" field to ask for the project name. 
+  - If a Git repository URL or repo base branch is provided, the ActionType must be ${
     DeveloperAction.UPDATE_PROJECT_GIT_REPO
-  }, the "project" field should match the related project name listed above in #PROJECTS# section, the "gitUrl" field must contains the provided git url. If the repository name (not the git repository name) cannot be detected then suggest a reply in "chat" field to ask for the repository name, otherwise include the repository name in the "repo" field.
+  }
+  The "gitUrl" field must contains the provided git url. 
+  The "repo" field must contains the provided name of the repo, or guess from the git URL.
+  The "project" field should match the related project name listed above in #PROJECTS# section.
+  If the "repo" field is empty then suggest a reply in "chat" field to ask for the repository name.
+
   - If the messages request me to perform some tasks then the ActionType is ${
     DeveloperAction.GENERATE_PULL_REQUEST_FROM_REQUIREMENTS
-  }, the "project" field should match the related project name listed above in #PROJECTS# section, the "repo" field should match the related repo name listed above in #REPOS# session. If the project name is not detected then suggest a reply in "chat" field to ask for the project name. If the project name is provided but it is not one of the project that I'm assigned, then suggest a reply in "chat" field to ask for the correct project name. If the project repo (not git repository) is missng then suggest a reply in "chat" field to ask for the project repo. If the project repo is provided but it is not one of the repo that I'm assigned, then suggest a reply in "chat" field to ask for the correct repo name. 
+  }
+  The "project" field should match the related project name listed above in #PROJECTS# section
+  The "repo" field should match the related repo name listed above in #REPOS# session.
+  The "requirements" field must contains the requirement summary of the task.
+  The "baseBranch" field must contain the requested branch to start with the task.
+  If the project name is not detected then suggest a response in "chat" field to ask for the project name. 
+  If the project name is provided but it is not one of the project that I'm assigned, then suggest a reponse in "chat" field to ask for the correct project name.
+   If the project repo (not git repository) is missng then suggest a reply in "chat" field to ask for the project repo. 
+   If the project repo is provided but it is not one of the repo that I'm assigned, then suggest a reply in "chat" field to ask for the correct repo name.
   `;
 };
 
 export const getDetermineDecisionPrompt = (
   chats: Chat[],
-  expectedDecision: string,
+  expectedDecision: string
 ) => {
   return `
   As a developer, my boss and me are discussing this: 
@@ -116,7 +126,11 @@ export const getDetermineDecisionPrompt = (
   - if my boss affirms on the situation, set "positive" to "true", otherwise set to "false"
   - if positive is "false", please suggest a question in the "chat" field that I can ask him to clarify the problem
   - the "desicion" contains additional information of his decision on the problem must be a valid JSON
-  - the "decision" must have this JSON format ${expectedDecision}
+  - the "decision" ${
+    expectedDecision
+      ? `must have this JSON format  ${expectedDecision}`
+      : "can be null"
+  } 
   - please check the keys of "decision" to populate the relevant information
 
   `;
@@ -124,7 +138,7 @@ export const getDetermineDecisionPrompt = (
 
 export const getDetermineNewProjectNamePrompt = (
   project: Project,
-  chats: Chat[],
+  chats: Chat[]
 ) => {
   return `
   As a developer, my boss and me are discussing this: 
@@ -164,6 +178,21 @@ export const getVerifyExistingProjectPrompt = (project: Project) => {
   `;
 };
 
+export const getPendingTaskMessagePrompt = (task: Task) => {
+  return `
+  As a developer, my boss asked me towork on a new task.
+  
+  But as I'm having an already pending task, please suggest a response in "chat" field to tell him wait for me to complete my current task. Remind him of the current task that I'm working on is: ${task.requirements?.join(
+    "\n"
+  )}
+  ${guidesOnJsonResponse.join("\n")}
+
+  {
+    "chat": string
+  }
+  `;
+};
+
 export const getResolveCurrentFollowUpPrompt = (chats: Chat[]) => {
   return `
   As a developer, my boss and me are discussing this: 
@@ -177,5 +206,27 @@ export const getResolveCurrentFollowUpPrompt = (chats: Chat[]) => {
   {
     "chat": string
   }
+  `;
+};
+
+export const getDetermineTaskRequirementClearedPrompt = (chats: Chat[]) => {
+  return `
+  As a developer, my boss and me are discussing this: 
+  ${chats
+    .map((chat) => `${chat.outbound ? "my boss" : "me"}: ${chat.content}`)
+    .join("\n")}
+
+  Please help me determine if the requirements are clear enough for me to start working with the task.
+  ${guidesOnJsonResponse.join("\n")}
+  
+  {
+    "positive": boolean,
+    "chat": string
+  }
+
+  Some information that help on providing the response:
+  - if the requirement are clear, set "positive" field to false, otherwise set to true
+  - if "positive" field is true, please suggest a response in "chat" field so that I can more detail about the task requirements
+  - if "positive" is false, please suggest a response in "chat" field saying that I'm working on the task and will update the status.
   `;
 };
