@@ -1,56 +1,30 @@
 import {Chat, ChatModel} from "./models/chat";
-import {ProjectModel} from "./models/project";
-import {User} from "./models/user";
+import {Project, ProjectModel} from "./models/project";
+import {ProjectRepo, ProjectRepoModel} from "./models/project-repo";
+import {User, UserModel} from "./models/user";
 
 import {
-  ChatResponse,
   DeveloperAction,
   determineActionsFromChat,
-  determineDecisionMade,
   resolveCurrentFollowUp,
   verifyExistingProject,
 } from "./services/ai";
 import {ChatEmitter} from "./services/chat";
 import {initNewProject} from "./services/project";
 
-class FollowUp<T = any> {
-  constructor(
-    protected readonly developer: AiDeveloper,
-    protected readonly initMessage: () => Promise<ChatResponse>,
-    protected readonly decisionFormat: string,
-    protected readonly onFinishInit: () => void,
-    protected readonly onDecide: (decision: T) => void,
-  ) {
-    initMessage().then((chat) => {
-      this.developer.chatBack(chat.chat);
-      this.onFinishInit();
-    });
-  }
-
-  async handleFollowUpChats(chats: Chat[]) {
-    console.log("handle follow up");
-
-    const decisionMade = await determineDecisionMade<T>(
-      this.developer.user,
-      chats,
-      this.decisionFormat,
-    );
-
-    this.developer.chatBack(decisionMade.chat);
-
-    if (decisionMade.positive) {
-      this.onDecide(decisionMade.decision);
-    }
-  }
-}
+import {createProjectNameFollowUp, FollowUp} from "./follow-ups";
 
 export class AiDeveloper {
   //-- store recent chats to follow up
   protected readonly chats: Chat[] = [];
+
+  protected projects: Project[] = [];
+  protected repos: ProjectRepo[] = [];
+
   protected followUp?: FollowUp;
 
   constructor(
-    public readonly user: User,
+    protected readonly user: User,
     protected readonly chatEmitter: ChatEmitter,
   ) {}
 
@@ -62,6 +36,15 @@ export class AiDeveloper {
     this.chats.push(chat);
 
     return chat;
+  }
+
+  async reload() {
+    this.projects = await ProjectModel.find({user: this.user._id}).lean();
+    const projectIds = this.projects.map((p) => p._id);
+
+    this.repos = await ProjectRepoModel.find({
+      project: {$in: projectIds},
+    }).lean();
   }
 
   chatBack(content?: string) {
@@ -83,18 +66,83 @@ export class AiDeveloper {
     console.log("receive chat:", content);
     this.storeChat(content);
     //-- check what kind of this content is
-    const actions = await determineActionsFromChat(this.user, this.chats);
+    const actions = await determineActionsFromChat(
+      this.user,
+      this.projects,
+      this.repos,
+      this.chats,
+    );
+
+    console.log("detected actions: ", actions);
 
     for (const action of actions) {
-      console.log("detected action", action);
       switch (action.type) {
         case DeveloperAction.ANSWER_PREVIOUS_QUESTION:
-          this.followUp?.handleFollowUpChats(this.chats);
+          await this.followUp?.handleFollowUpChats(this.chats);
+          this.chatBack(action.chat);
           break;
 
         case DeveloperAction.JUST_A_CHAT:
           this.chatBack(action.chat);
           break;
+
+        case DeveloperAction.UPDATE_PERSONAL_INFO: {
+          if (action.memory?.length) {
+            await UserModel.updateOne(
+              {_id: this.user._id},
+              {$push: {memory: {$each: action.memory}}},
+            );
+          }
+        }
+
+        case DeveloperAction.UPDATE_PROJECT_INFO: {
+          if (action.project) {
+            const project = await ProjectModel.findOneAndUpdate(
+              {
+                name: action.project,
+                user: this.user._id,
+              },
+              {
+                $set: {
+                  ...(action.gitAccessToken && {
+                    git_access_token: action.gitAccessToken,
+                  }),
+                },
+              },
+            );
+
+            if (project) {
+              this.chatBack(action.chat);
+            }
+          }
+          break;
+        }
+
+        case DeveloperAction.UPDATE_PROJECT_GIT_REPO: {
+          if (action.project) {
+            const project = await ProjectModel.findOne({
+              name: action.project,
+              user: this.user._id,
+            });
+
+            if (project && action.repo) {
+              const repo = await ProjectRepoModel.findOneAndUpdate(
+                {project: project._id, name: action.repo},
+                {
+                  $set: {
+                    ...(action.gitUrl && {repo_url: action.gitUrl}),
+                  },
+                },
+                {upsert: true},
+              );
+
+              if (repo) {
+                this.chatBack(action.chat);
+              }
+            }
+          }
+          break;
+        }
 
         case DeveloperAction.ASSIGN_NEW_PROJECT: {
           if (action.project) {
@@ -115,32 +163,15 @@ export class AiDeveloper {
                 const chat = await verifyExistingProject(this.user, project);
                 this.chatBack(chat.chat);
 
-                await new Promise<void>((resolve) => {
-                  console.log("[follow up created]");
-
-                  this.followUp = new FollowUp<{
-                    isNew: boolean;
-                    projectName: string;
-                  }>(
-                    this,
-                    () => verifyExistingProject(this.user, project),
-                    `
-                    {
-                      isNew: boolean;
-                      projectName: string;
-                    }
-                    `,
-                    () => resolve(),
-                    ({isNew, projectName}) => {
-                      if (isNew) {
-                        initNewProject(this.user, {name: projectName});
-                      }
-
-                      //-- decision made, clear followup
-                      this.followUp = undefined;
-                    },
-                  );
-                });
+                this.followUp = createProjectNameFollowUp(
+                  this.user,
+                  project,
+                  this.chats,
+                  this.chatBack,
+                  () => {
+                    this.followUp = undefined;
+                  },
+                );
               }
             } else {
               this.chatBack(action.chat);

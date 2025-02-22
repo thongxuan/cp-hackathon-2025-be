@@ -12,11 +12,14 @@ export class Project {
   name!: string;
 
   //-- store the project conventions
-  @prop({})
+  @prop()
   memory?: string[];
 
   @prop({required: true, default: Date.now})
   created_at!: Date;
+
+  @prop()
+  git_access_token?: string;
 }
 
 export const ProjectModel = getModelForClass(Project);

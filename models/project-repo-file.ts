@@ -1,14 +1,14 @@
-import { getModelForClass, index, prop } from "@typegoose/typegoose";
-import { Types } from "mongoose";
+import {getModelForClass, index, prop} from "@typegoose/typegoose";
+import {Types} from "mongoose";
 
-@index({ project_repo: 1 })
+@index({project_repo: 1})
 export class ProjectRepoFile {
   _id!: Types.ObjectId;
 
-  @prop({ required: true })
+  @prop({required: true})
   project_repo!: Types.ObjectId;
 
-  @prop({ required: true })
+  @prop({required: true})
   uri!: string;
 
   @prop()
