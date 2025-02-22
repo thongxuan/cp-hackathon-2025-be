@@ -1,5 +1,6 @@
-import {ClientSession} from "mongoose";
+import {ClientSession, Types} from "mongoose";
 import assert from "assert";
+import {WebSocket} from "ws";
 
 import {User, UserModel} from "../models/user";
 
@@ -9,8 +10,18 @@ const getInitialUserMemory = (user: User) => [
   `I'm a virtual developer, my name is ${user.name}`,
 ];
 
+const userWebsockets: Record<string, WebSocket | undefined> = {};
+
 export const getUserFromReq = (req: Request) => {
   return (req as any).user as {userId: string} | undefined;
+};
+
+export const getUserWebsocket = (user: Types.ObjectId) => {
+  return userWebsockets[user.toHexString()];
+};
+
+export const setUserWebsocket = (user: Types.ObjectId, ws: WebSocket) => {
+  return (userWebsockets[user.toHexString()] = ws);
 };
 
 export const initDeveloper = async (user: User) => {
