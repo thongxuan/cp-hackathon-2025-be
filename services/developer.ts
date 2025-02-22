@@ -1,18 +1,24 @@
-import {Chat, ChatModel} from "./models/chat";
-import {Project, ProjectModel} from "./models/project";
-import {ProjectRepo, ProjectRepoModel} from "./models/project-repo";
-import {User, UserModel} from "./models/user";
+import { Types } from "mongoose";
+import assert from "assert";
+
+import { Chat, ChatModel } from "../models/chat";
+import { Project, ProjectModel } from "../models/project";
+import { ProjectRepo, ProjectRepoModel } from "../models/project-repo";
+import { User, UserModel } from "../models/user";
 
 import {
   DeveloperAction,
   determineActionsFromChat,
   resolveCurrentFollowUp,
   verifyExistingProject,
-} from "./services/ai";
-import {ChatEmitter} from "./services/chat";
-import {initNewProject} from "./services/project";
+} from "./ai";
+import { ChatEmitter } from "./chat";
+import { initNewProject } from "./project";
 
-import {createProjectNameFollowUp, FollowUp} from "./follow-ups";
+import { createProjectNameFollowUp, FollowUp } from "./follow-ups";
+import { getUserWebsocket } from "./user";
+
+const developers: Record<string, AiDeveloper | undefined> = {};
 
 export class AiDeveloper {
   //-- store recent chats to follow up
@@ -25,11 +31,15 @@ export class AiDeveloper {
 
   constructor(
     protected readonly user: User,
-    protected readonly chatEmitter: ChatEmitter,
+    protected readonly chatEmitter: ChatEmitter
   ) {}
 
   protected storeChat(content: string) {
-    const chat = new ChatModel({user: this.user._id, outbound: true, content});
+    const chat = new ChatModel({
+      user: this.user._id,
+      outbound: true,
+      content,
+    });
 
     ChatModel.create([chat]);
 
@@ -39,11 +49,11 @@ export class AiDeveloper {
   }
 
   async reload() {
-    this.projects = await ProjectModel.find({user: this.user._id}).lean();
+    this.projects = await ProjectModel.find({ user: this.user._id }).lean();
     const projectIds = this.projects.map((p) => p._id);
 
     this.repos = await ProjectRepoModel.find({
-      project: {$in: projectIds},
+      project: { $in: projectIds },
     }).lean();
   }
 
@@ -70,7 +80,7 @@ export class AiDeveloper {
       this.user,
       this.projects,
       this.repos,
-      this.chats,
+      this.chats
     );
 
     console.log("detected actions: ", actions);
@@ -89,8 +99,8 @@ export class AiDeveloper {
         case DeveloperAction.UPDATE_PERSONAL_INFO: {
           if (action.memory?.length) {
             await UserModel.updateOne(
-              {_id: this.user._id},
-              {$push: {memory: {$each: action.memory}}},
+              { _id: this.user._id },
+              { $push: { memory: { $each: action.memory } } }
             );
           }
         }
@@ -108,7 +118,7 @@ export class AiDeveloper {
                     git_access_token: action.gitAccessToken,
                   }),
                 },
-              },
+              }
             );
 
             if (project) {
@@ -127,13 +137,13 @@ export class AiDeveloper {
 
             if (project && action.repo) {
               const repo = await ProjectRepoModel.findOneAndUpdate(
-                {project: project._id, name: action.repo},
+                { project: project._id, name: action.repo },
                 {
                   $set: {
-                    ...(action.gitUrl && {repo_url: action.gitUrl}),
+                    ...(action.gitUrl && { repo_url: action.gitUrl }),
                   },
                 },
-                {upsert: true},
+                { upsert: true }
               );
 
               if (repo) {
@@ -156,7 +166,7 @@ export class AiDeveloper {
               if (this.followUp) {
                 const chat = await resolveCurrentFollowUp(
                   this.user,
-                  this.chats,
+                  this.chats
                 );
                 this.chatBack(chat.chat);
               } else {
@@ -167,16 +177,16 @@ export class AiDeveloper {
                   this.user,
                   project,
                   this.chats,
-                  this.chatBack,
+                  this.chatBack.bind(this),
                   () => {
                     this.followUp = undefined;
-                  },
+                  }
                 );
               }
             } else {
               this.chatBack(action.chat);
               //-- create new project for this user
-              await initNewProject(this.user, {name: action.project});
+              await initNewProject(this.user, { name: action.project });
             }
           }
           break;
@@ -185,3 +195,27 @@ export class AiDeveloper {
     }
   }
 }
+
+export const getDeveloperOfUser = async (userId: Types.ObjectId) => {
+  let developer = developers[userId.toHexString()];
+
+  if (!developer) {
+    const user = await UserModel.findById(userId).lean();
+
+    assert.ok(user);
+
+    developer = new AiDeveloper(user, (chat) => {
+      const socket = getUserWebsocket(userId);
+
+      ChatModel.create([chat]);
+
+      if (socket) {
+        socket.emit(userId.toHexString(), chat);
+      }
+    });
+
+    developers[userId.toHexString()] = developer;
+  }
+
+  return developer;
+};
