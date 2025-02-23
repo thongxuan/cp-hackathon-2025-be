@@ -205,4 +205,9 @@ export const syncFilesToGpt = async (
       })
     );
   });
+
+  return await ProjectRepoFileModel.find(
+    { project_repo: projectRepo._id },
+    { uri: 1, openai_file_id: 1 }
+  ).lean();
 };

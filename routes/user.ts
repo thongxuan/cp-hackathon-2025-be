@@ -22,7 +22,7 @@ router.get("/task", async (req, res) => {
 
   console.log("task here", task);
   if (task) {
-    await executeTask(task, (message) => {
+    await executeTask(user, task, (message) => {
       console.log(`< ${message}`);
     });
   }

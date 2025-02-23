@@ -213,3 +213,29 @@ export const getDetermineTaskRequirementClearedPrompt = (chats: Chat[]) => {
   - if "positive" is false, please suggest a response in "chat" field saying that I'm working on the task and will update the status.
   `;
 };
+
+export const getDetermineTaskSuccessResponse = (
+  requirements: string[],
+  solution: string
+) => {
+  return `
+  As a developer, my boss tell me to create a Git Diff for this requirements: ${requirements.join(
+    "\n"
+  )}
+
+  Here is my solution: "${solution}";
+
+  Base on the solution message, I would like to know if this solution had solve the requiremnets.
+  ${guidesOnJsonResponse.join("\n")}
+  
+  {
+    "positive": boolean,
+    "chat": string
+  }
+
+  Some information that help on providing the response:
+  - if the solution fits the requirements set "positive" field to true.
+  - if "positive" field is true, ask how my boss think about the solution.
+  - if "positive" is false, say sorry that I couldn't finish the task
+  `;
+};

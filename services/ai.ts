@@ -13,6 +13,7 @@ import {
   getDetermineDecisionPrompt,
   getDetermineNewProjectNamePrompt,
   getDetermineTaskRequirementClearedPrompt,
+  getDetermineTaskSuccessResponse,
   getResolveCurrentFollowUpPrompt,
   getVerifyExistingProjectPrompt,
 } from "./prompt";
@@ -135,5 +136,16 @@ export const determineTaskRequirementsCleared = async (
   return await request<DetermineNewProjectNameResponse>(
     user,
     getDetermineTaskRequirementClearedPrompt(chats)
+  );
+};
+
+export const determinedTaskSuccess = async (
+  user: User,
+  requirements: string[],
+  solution: string
+) => {
+  return await request<PositiveResponse>(
+    user,
+    getDetermineTaskSuccessResponse(requirements, solution)
   );
 };
