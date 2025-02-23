@@ -26,14 +26,16 @@ router.post("/chats", async (req: any, res) => {
     return;
   }
 
-  const message = await ChatModel.insertOne({
+  const message = new ChatModel({
     user: user.userId,
     content: req.body.content,
     outbound: true,
   });
 
   getDeveloperOfUser(user.userId).then((developer) =>
-    developer.receiveChat(message.content)
+    developer
+      .receiveChat(message.content)
+      .catch(() => developer.chatBack("Error happenned, please retry"))
   );
 
   res.json(message);

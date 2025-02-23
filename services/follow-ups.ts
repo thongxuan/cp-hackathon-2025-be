@@ -5,6 +5,7 @@ import { User } from "../models/user";
 import {
   determineDecisionMade,
   determineNewProjectName,
+  determineTaskRequirementsCleared,
   PositiveResponse,
 } from "./ai";
 import { initNewProject } from "./project";
@@ -59,7 +60,7 @@ export const createProjectNameFollowUp = (
   project: Project,
   chats: Chat[],
   chatBack: (content?: string) => void,
-  onFinish?: () => void
+  onFinish?: () => Promise<void>
 ) => {
   return new FollowUp<{
     isNew: boolean;
@@ -74,15 +75,33 @@ export const createProjectNameFollowUp = (
       projectName: string;
     }
     `,
-    (decision) => {
+    async (decision) => {
       if (decision) {
         if (decision.isNew) {
-          initNewProject(user, { name: decision.projectName });
+          await initNewProject(user, { name: decision.projectName });
         }
       }
 
       //-- decision made, clear followup
-      onFinish?.();
+      await onFinish?.();
+    }
+  );
+};
+
+export const createTaskRequirementsFollowUp = (
+  user: User,
+  chats: Chat[],
+  chatBack: (content?: string) => void,
+  onFinish?: () => Promise<void>
+) => {
+  return new FollowUp<void>(
+    user,
+    chatBack,
+    () => determineTaskRequirementsCleared(user, chats),
+    "",
+    async () => {
+      //-- decision made
+      await onFinish?.();
     }
   );
 };

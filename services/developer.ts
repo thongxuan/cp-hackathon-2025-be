@@ -5,6 +5,7 @@ import { Chat, ChatModel } from "../models/chat";
 import { Project, ProjectModel } from "../models/project";
 import { ProjectRepo, ProjectRepoModel } from "../models/project-repo";
 import { User, UserModel } from "../models/user";
+import { TaskModel } from "../models/task";
 
 import {
   DeveloperAction,
@@ -14,9 +15,14 @@ import {
 } from "./ai";
 import { ChatEmitter } from "./chat";
 import { initNewProject } from "./project";
-
-import { createProjectNameFollowUp, FollowUp } from "./follow-ups";
 import { getUserWebsocket } from "./user";
+import { createAndExecuteTask, getPendingTask } from "./task";
+
+import {
+  createProjectNameFollowUp,
+  createTaskRequirementsFollowUp,
+  FollowUp,
+} from "./follow-ups";
 
 const developers: Record<string, AiDeveloper | undefined> = {};
 
@@ -73,8 +79,10 @@ export class AiDeveloper {
   }
 
   async receiveChat(content: string) {
-    console.log("receive chat:", content);
     this.storeChat(content);
+
+    await this.followUp?.handleFollowUpChats(this.chats);
+
     //-- check what kind of this content is
     const actions = await determineActionsFromChat(
       this.user,
@@ -87,11 +95,6 @@ export class AiDeveloper {
 
     for (const action of actions) {
       switch (action.type) {
-        case DeveloperAction.ANSWER_PREVIOUS_QUESTION:
-          await this.followUp?.handleFollowUpChats(this.chats);
-          this.chatBack(action.chat);
-          break;
-
         case DeveloperAction.JUST_A_CHAT:
           this.chatBack(action.chat);
           break;
@@ -122,8 +125,11 @@ export class AiDeveloper {
             );
 
             if (project) {
+              await this.reload();
               this.chatBack(action.chat);
             }
+          } else {
+            this.chatBack(action.chat);
           }
           break;
         }
@@ -141,6 +147,9 @@ export class AiDeveloper {
                 {
                   $set: {
                     ...(action.gitUrl && { repo_url: action.gitUrl }),
+                    ...(action.baseBranch && {
+                      repo_base_branch: action.baseBranch,
+                    }),
                   },
                 },
                 { upsert: true }
@@ -148,8 +157,13 @@ export class AiDeveloper {
 
               if (repo) {
                 this.chatBack(action.chat);
+                await this.reload();
               }
+            } else {
+              this.chatBack(action.chat);
             }
+          } else {
+            this.chatBack(action.chat);
           }
           break;
         }
@@ -178,8 +192,9 @@ export class AiDeveloper {
                   project,
                   this.chats,
                   this.chatBack.bind(this),
-                  () => {
+                  async () => {
                     this.followUp = undefined;
+                    await this.reload();
                   }
                 );
               }
@@ -187,8 +202,74 @@ export class AiDeveloper {
               this.chatBack(action.chat);
               //-- create new project for this user
               await initNewProject(this.user, { name: action.project });
+              await this.reload();
             }
           }
+          break;
+        }
+
+        case DeveloperAction.GENERATE_PULL_REQUEST_FROM_REQUIREMENTS: {
+          const pendingTask = await getPendingTask(this.user._id);
+
+          if (pendingTask) {
+            this.chatBack("Hi, please wait until I finish my current task");
+          } else {
+            this.chatBack(action.chat);
+
+            const project = !action.project
+              ? undefined
+              : await ProjectModel.findOne({
+                  name: action.project,
+                  user: this.user._id,
+                }).lean();
+
+            const repo =
+              !project || !action.repo
+                ? undefined
+                : await ProjectRepoModel.findOne({
+                    project: project._id,
+                    name: action.repo,
+                  }).lean();
+
+            const baseBranch = action.baseBranch || repo?.repo_base_branch;
+
+            if (
+              !project ||
+              !repo ||
+              !baseBranch ||
+              !action.requirements?.length
+            ) {
+              this.followUp = createTaskRequirementsFollowUp(
+                this.user,
+                this.chats,
+                this.chatBack.bind(this),
+                async () => {
+                  this.followUp = undefined;
+                }
+              );
+            } else {
+              if (!repo.repo_base_branch) {
+                await ProjectRepoModel.updateOne(
+                  { _id: repo._id },
+                  { $set: { repo_base_branch: baseBranch } }
+                );
+              }
+
+              createAndExecuteTask(
+                new TaskModel({
+                  user: this.user._id,
+                  repo: repo._id,
+                  requirements: action.requirements,
+                }),
+                (message) => this.chatBack(message)
+              ).catch((err) =>
+                this.chatBack(
+                  `Error happenned when I try executing my task: ${err.message}`
+                )
+              );
+            }
+          }
+
           break;
         }
       }
@@ -215,6 +296,8 @@ export const getDeveloperOfUser = async (userId: Types.ObjectId) => {
     });
 
     developers[userId.toHexString()] = developer;
+
+    await developer.reload();
   }
 
   return developer;
