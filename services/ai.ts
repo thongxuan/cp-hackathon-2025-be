@@ -7,14 +7,12 @@ import { Project } from "../models/project";
 import { User } from "../models/user";
 import { Chat } from "../models/chat";
 import { ProjectRepo } from "../models/project-repo";
-import { Task } from "../models/task";
 
 import {
   getDetermineActionsPrompt,
   getDetermineDecisionPrompt,
   getDetermineNewProjectNamePrompt,
   getDetermineTaskRequirementClearedPrompt,
-  getPendingTaskMessagePrompt,
   getResolveCurrentFollowUpPrompt,
   getVerifyExistingProjectPrompt,
 } from "./prompt";
@@ -28,7 +26,7 @@ export enum DeveloperAction {
   GENERATE_PULL_REQUEST_FROM_REQUIREMENTS = "GENERATE_PULL_REQUEST_FROM_REQUIREMENTS",
 }
 
-const openai = new OpenAI({ apiKey: OPEN_AI_KEY });
+export const openai = new OpenAI({ apiKey: OPEN_AI_KEY });
 
 export interface ChatResponse {
   chat?: string; //-- chat back message
@@ -118,10 +116,6 @@ export const verifyExistingProject = async (user: User, project: Project) => {
     user,
     getVerifyExistingProjectPrompt(project)
   );
-};
-
-export const getPendingTaskMessage = async (user: User, task: Task) => {
-  return await request<ChatResponse>(user, getPendingTaskMessagePrompt(task));
 };
 
 export const resolveCurrentFollowUp = async (user: User, chats: Chat[]) => {

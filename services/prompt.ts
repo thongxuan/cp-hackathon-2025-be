@@ -1,16 +1,14 @@
 import { Chat } from "../models/chat";
 import { Project } from "../models/project";
 import { ProjectRepo } from "../models/project-repo";
-import { Task } from "../models/task";
 
 import { DeveloperAction } from "./ai";
 
 const guidesOnJsonResponse = [
   "Here are some guides on the response:",
-  "- the response must be a valid JSON",
-  "- do not format the response",
-  "- do not include any placeholder brackets in the response text",
-  "The response should be:",
+  "- the response must be a valid JSON, start with { and end with } without any format or explanation",
+  "- do not include placeholders like 'hi [someone]' in the response text",
+  "The response must be:",
 ];
 export const getDetermineActionsPrompt = (
   projects: Project[],
@@ -170,21 +168,6 @@ export const getVerifyExistingProjectPrompt = (project: Project) => {
   }" in "${project.created_at.toISOString()}".
   
   Because I already been added to a project with a same name, please suggest a reply so that I can send to my boss to confirm if this is the same project or a new project.
-  ${guidesOnJsonResponse.join("\n")}
-
-  {
-    "chat": string
-  }
-  `;
-};
-
-export const getPendingTaskMessagePrompt = (task: Task) => {
-  return `
-  As a developer, my boss asked me towork on a new task.
-  
-  But as I'm having an already pending task, please suggest a response in "chat" field to tell him wait for me to complete my current task. Remind him of the current task that I'm working on is: ${task.requirements?.join(
-    "\n"
-  )}
   ${guidesOnJsonResponse.join("\n")}
 
   {

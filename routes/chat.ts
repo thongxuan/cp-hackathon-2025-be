@@ -33,7 +33,9 @@ router.post("/chats", async (req: any, res) => {
   });
 
   getDeveloperOfUser(user.userId).then((developer) =>
-    developer.receiveChat(message.content)
+    developer
+      .receiveChat(message.content)
+      .catch(() => developer.chatBack("Error happenned, please retry"))
   );
 
   res.json(message);

@@ -10,7 +10,6 @@ import { TaskModel } from "../models/task";
 import {
   DeveloperAction,
   determineActionsFromChat,
-  getPendingTaskMessage,
   resolveCurrentFollowUp,
   verifyExistingProject,
 } from "./ai";
@@ -80,7 +79,6 @@ export class AiDeveloper {
   }
 
   async receiveChat(content: string) {
-    console.log("receive chat:", content);
     this.storeChat(content);
 
     await this.followUp?.handleFollowUpChats(this.chats);
@@ -214,8 +212,7 @@ export class AiDeveloper {
           const pendingTask = await getPendingTask(this.user._id);
 
           if (pendingTask) {
-            const chat = await getPendingTaskMessage(this.user, pendingTask);
-            this.chatBack(chat.chat);
+            this.chatBack("Hi, please wait until I finish my current task");
           } else {
             this.chatBack(action.chat);
 
@@ -265,6 +262,10 @@ export class AiDeveloper {
                   requirements: action.requirements,
                 }),
                 (message) => this.chatBack(message)
+              ).catch((err) =>
+                this.chatBack(
+                  `Error happenned when I try executing my task: ${err.message}`
+                )
               );
             }
           }
