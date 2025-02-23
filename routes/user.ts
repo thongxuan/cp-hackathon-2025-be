@@ -1,9 +1,16 @@
 import express from "express";
 
+import { UserModel } from "../models/user";
+
 import { createOrGetUser, initDeveloper } from "../services/user";
 import { executeTask, getPendingTask } from "../services/task";
 
 const router = express.Router();
+
+router.get("/users/:id", async (req, res) => {
+  const user = await UserModel.findOne({ id: req.query.id });
+  res.json(user);
+});
 
 router.post("/users", async (req, res) => {
   const user = await createOrGetUser(req.body.name);
